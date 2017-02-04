@@ -10,6 +10,8 @@ import UIKit
 import AVFoundation
 import Photos
 import Speech
+import CoreSpotlight
+import MobileCoreServices
 
 class MemoriesViewController: UICollectionViewController,UIImagePickerControllerDelegate, UINavigationControllerDelegate, UICollectionViewDelegateFlowLayout, AVAudioRecorderDelegate {
     
@@ -298,13 +300,40 @@ class MemoriesViewController: UICollectionViewController,UIImagePickerController
                 // ...and write it to disk at the correct filename for this memory.
                 do {
                     try text.write(to: transcription, atomically: true, encoding: .utf8)
+                    
+                    // spotlight indexing
+                    self.indexMemory(memory: memory, text: text)
+                    
                 } catch {
                     print("Failed to save transcription")
                 }
             }
         }
     }
-
+    
+    private func indexMemory(memory: URL, text: String) {
+        // create a basic attribute set
+        let attributeSet = CSSearchableItemAttributeSet(itemContentType: kUTTypeText as String)
+        attributeSet.title = "Happy Days Memory"
+        attributeSet.contentDescription = text
+        attributeSet.thumbnailURL = thumbnailURL(for: memory)
+        
+        // wrap it in a searchable item, using the memory's full path as its unique identifier
+        let item = CSSearchableItem(uniqueIdentifier: memory.path, domainIdentifier: "nz.co.danielw", attributeSet: attributeSet)
+        
+        // make it never expire
+        item.expirationDate = Date.distantFuture
+        
+        // ask Spotlight to index the item
+        CSSearchableIndex.default().indexSearchableItems([item]) { error in
+            if let error = error {
+                print("Indexing error: \(error.localizedDescription)")
+            } else {
+                print("Search item succcesfully indexed: \(text)")
+            }
+        }
+    }
+    
     override func numberOfSections(in collectionView: UICollectionView) -> Int {
         return 2
     }
